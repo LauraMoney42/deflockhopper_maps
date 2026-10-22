@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { X, ArrowLeft, Copy, Check, Mail, ExternalLink, Search, Landmark, Building2, Loader2, AlertTriangle } from 'lucide-react';
+import { X, ArrowLeft, Copy, Check, Mail, ExternalLink, Search, Landmark, Building2, Loader2, AlertTriangle, Phone } from 'lucide-react';
 import type { ALPRCamera } from '@/types';
 import { fetchOfficials, NotInUSError, type Officials } from '@/services/officialsService';
 import type { LetterLevel } from '@/data/letterTemplates';
@@ -28,10 +28,19 @@ interface Recipient {
   title: string;
   subtitle: string | null;
   email: string | null;
+  phone: string | null;
   website: string | null;
+  /** "Profile" for a legislator's official page, "Website" for a government */
+  websiteLabel: string;
   /** Used for "Find contact" when there is no email on file */
   searchQuery: string;
   ctx: LetterContext;
+}
+
+// "Democratic" -> "D"; nonpartisan seats (Nebraska) show no party at all
+function partyLetter(party: string): string | null {
+  if (!party || /nonpartisan/i.test(party)) return null;
+  return party.trim()[0].toUpperCase();
 }
 
 function lastWord(name: string | null): string | undefined {
@@ -46,10 +55,12 @@ function buildRecipients(o: Officials): Recipient[] {
     recipients.push({
       key: 'city',
       level: 'city',
-      title: `${o.place.name} City Council`,
-      subtitle: o.place.head ? `Mayor ${o.place.head}` : null,
+      title: `City of ${o.place.name}`,
+      subtitle: o.place.head ? `Mayor ${o.place.head} · City council` : 'City council',
       email: null,
+      phone: null,
       website: o.place.website,
+      websiteLabel: 'Website',
       searchQuery: `${o.place.name} ${o.state.code} city council contact email`,
       ctx: { state, city: o.place.name, county: o.county?.name, lastName: lastWord(o.place.head) },
     });
@@ -60,23 +71,28 @@ function buildRecipients(o: Officials): Recipient[] {
       key: 'county',
       level: 'county',
       title: o.county.name,
-      subtitle: o.place ? null : 'This camera is outside any city, so the county is the local government',
+      subtitle: o.place ? 'County board' : 'County board · This camera is outside any city, so the county governs it',
       email: null,
+      phone: null,
       website: o.county.website,
+      websiteLabel: 'Website',
       searchQuery: `${o.county.name} ${o.state.code} commissioners contact email`,
       ctx: { state, county: o.county.name },
     });
   }
 
   for (const l of o.stateLegislators) {
-    const house = l.chamber === 'lower' ? 'State House' : l.chamber === 'upper' ? 'State Senate' : 'Legislature';
+    const role = l.chamber === 'lower' ? 'State representative' : 'State senator';
+    const party = partyLetter(l.party);
     recipients.push({
       key: `state-${l.chamber}-${l.district}-${l.name}`,
       level: 'state',
-      title: `${l.chamber === 'lower' ? 'Rep.' : 'Sen.'} ${l.name}`,
-      subtitle: `${house} District ${l.district}${l.party ? ` · ${l.party}` : ''}`,
+      title: party ? `${l.name} (${party})` : l.name,
+      subtitle: `${role} · District ${l.district}`,
       email: l.email,
+      phone: l.phone,
       website: l.url,
+      websiteLabel: 'Profile',
       searchQuery: `${l.name} ${state} legislator email`,
       ctx: { state, lastName: l.familyName, chamber: l.chamber },
     });
@@ -199,7 +215,7 @@ function RecipientList({ recipients, officials, onSelect }: {
           <h3 className="flex items-center gap-2 mb-2 text-sm font-medium text-dark-100">
             <Building2 className="w-4 h-4 text-dark-300" /> Local government
           </h3>
-          <div className="space-y-2">{local.map(r => <RecipientCard key={r.key} recipient={r} onSelect={onSelect} />)}</div>
+          <div>{local.map(r => <RecipientCard key={r.key} recipient={r} onSelect={onSelect} />)}</div>
         </section>
       )}
 
@@ -207,9 +223,16 @@ function RecipientList({ recipients, officials, onSelect }: {
         <h3 className="flex items-center gap-2 mb-2 text-sm font-medium text-dark-100">
           <Landmark className="w-4 h-4 text-dark-300" /> {officials.state.name} legislators
         </h3>
-        {state.length > 0 ? (
-          <div className="space-y-2">{state.map(r => <RecipientCard key={r.key} recipient={r} onSelect={onSelect} />)}</div>
-        ) : (
+        {state.length > 0 && (
+          <div>{state.map(r => <RecipientCard key={r.key} recipient={r} onSelect={onSelect} />)}</div>
+        )}
+        {officials.unfilledSeats.map(seat => (
+          <p key={`${seat.chamber}-${seat.district}`} className="mt-2 text-xs text-dark-400">
+            {seat.chamber === 'lower' ? 'State House' : 'State Senate'} District {seat.district}: no current member on file.
+            The seat may be vacant.
+          </p>
+        ))}
+        {state.length === 0 && officials.unfilledSeats.length === 0 && (
           <p className="text-xs text-dark-400">No legislators found for this district.</p>
         )}
       </section>
@@ -221,36 +244,36 @@ function RecipientList({ recipients, officials, onSelect }: {
   );
 }
 
+// Card layout follows Track the Pole's: who, what they are, then one row of
+// contact buttons. "Write letter" leads because the letter is the product.
 function RecipientCard({ recipient: r, onSelect }: { recipient: Recipient; onSelect: (r: Recipient) => void }) {
+  const chip = 'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium border border-dark-500 text-dark-100 hover:bg-dark-600 transition-colors';
   return (
-    <div className="p-3 rounded-lg bg-dark-700/60 border border-dark-600">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-sm font-medium text-white truncate">{r.title}</p>
-          {r.subtitle && <p className="text-xs text-dark-400">{r.subtitle}</p>}
-          <p className="text-xs mt-1 truncate">
-            {r.email ? (
-              <span className="text-dark-200">{r.email}</span>
-            ) : (
-              <span className="text-dark-400">No email on file</span>
-            )}
-          </p>
-        </div>
+    <div className="py-3 border-b border-dark-600 last:border-b-0">
+      <p className="text-sm font-semibold text-white">{r.title}</p>
+      {r.subtitle && <p className="text-xs text-dark-400">{r.subtitle}</p>}
+      <div className="flex flex-wrap items-center gap-2 mt-2">
         <button
           onClick={() => onSelect(r)}
-          className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-accent text-dark-900 hover:bg-accent/90 transition-colors"
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-accent text-dark-900 hover:bg-accent/90 transition-colors"
         >
           <Mail className="w-3.5 h-3.5" /> Write letter
         </button>
-      </div>
-      <div className="flex gap-3 mt-2 text-xs">
+        {r.email && (
+          <a href={`mailto:${r.email}`} className={chip} title={r.email}>Email</a>
+        )}
+        {r.phone && (
+          <a href={`tel:${r.phone.replace(/[^\d+]/g, '')}`} className={chip}>
+            <Phone className="w-3 h-3" /> {r.phone}
+          </a>
+        )}
         {r.website && (
-          <a href={r.website} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-accent hover:underline">
-            <ExternalLink className="w-3 h-3" /> Website
+          <a href={r.website} target="_blank" rel="noopener noreferrer" className={chip}>
+            <ExternalLink className="w-3 h-3" /> {r.websiteLabel}
           </a>
         )}
         {!r.email && (
-          <a href={contactSearchUrl(r.searchQuery)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-accent hover:underline">
+          <a href={contactSearchUrl(r.searchQuery)} target="_blank" rel="noopener noreferrer" className={chip}>
             <Search className="w-3 h-3" /> Find contact
           </a>
         )}

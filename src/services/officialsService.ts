@@ -20,7 +20,14 @@ export interface Legislator {
   chamber: 'upper' | 'lower' | 'legislature';
   district: string;
   email: string | null;
+  phone: string | null;
   url: string | null;
+}
+
+/** A district containing the camera with no current member in the data, usually a vacancy */
+export interface UnfilledSeat {
+  chamber: 'upper' | 'lower';
+  district: string;
 }
 
 export interface Officials {
@@ -28,6 +35,7 @@ export interface Officials {
   place: LocalGov | null;
   county: LocalGov | null;
   stateLegislators: Legislator[];
+  unfilledSeats: UnfilledSeat[];
 }
 
 export class NotInUSError extends Error {}
