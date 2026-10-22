@@ -17,6 +17,10 @@ export interface LetterContext {
   county?: string;
   /** Recipient's family name, when known */
   lastName?: string;
+  /** County governing body, e.g. "Quorum Court"; unknown where a state's counties differ */
+  countyBody?: string | null;
+  /** How the county's leader is addressed, e.g. "County Judge" */
+  countyHeadTitle?: string | null;
   /** For state letters: which chamber the legislator sits in */
   chamber?: 'upper' | 'lower' | 'legislature';
 }
@@ -38,6 +42,19 @@ export function fillLetter(level: LetterLevel, ctx: LetterContext): Letter {
     // No mayor on file: address the council alone instead of leaving a
     // "Mayor [Last Name]" gap the user has to research.
     body = body.replace('Mayor [Last Name] and ', '');
+  }
+
+  if (level === 'county') {
+    // Build the greeting from what we actually know, never a guessed title:
+    // "Dear County Judge Smith and Members of the Washington County Quorum Court,"
+    const lines = body.split('\n');
+    const head = ctx.countyHeadTitle && ctx.lastName ? `${ctx.countyHeadTitle} ${ctx.lastName} and ` : '';
+    if (ctx.countyBody && ctx.county) {
+      lines[0] = `Dear ${head}Members of the ${ctx.county} ${ctx.countyBody},`;
+    } else if (ctx.county) {
+      lines[0] = `Dear ${ctx.county} officials,`;
+    }
+    body = lines.join('\n');
   }
 
   if (level === 'state' && ctx.chamber) {

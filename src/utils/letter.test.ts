@@ -43,9 +43,23 @@ describe('fillLetter', () => {
 
   it('leaves unknown values as placeholders for the user', () => {
     const { body } = fillLetter('county', { state: 'Colorado', county: 'Adams County' });
-    expect(findPlaceholders(body)).toContain('[County Judge / County Executive / Chair]');
+    expect(findPlaceholders(body)).not.toContain('[County Judge / County Executive / Chair]');
     expect(body).toContain('I live in Adams County.');
     expect(body).not.toContain('County County');
+  });
+
+  it('greets the county body and its leader when known', () => {
+    const { body } = fillLetter('county', {
+      state: 'Arkansas', county: 'Washington County', countyBody: 'Quorum Court', countyHeadTitle: 'County Judge', lastName: 'Deffenbaugh',
+    });
+    expect(body).toMatch(/^Dear County Judge Deffenbaugh and Members of the Washington County Quorum Court,\n/);
+  });
+
+  it('greets just the body when the leader is unknown, and never guesses the body', () => {
+    expect(fillLetter('county', { state: 'Texas', county: 'Travis County', countyBody: 'Commissioners Court', countyHeadTitle: 'County Judge' }).body)
+      .toMatch(/^Dear Members of the Travis County Commissioners Court,\n/);
+    expect(fillLetter('county', { state: 'New York', county: 'Albany County', countyBody: null }).body)
+      .toMatch(/^Dear Albany County officials,\n/);
   });
 
   it('keeps parish names intact', () => {

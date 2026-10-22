@@ -30,6 +30,8 @@ interface Recipient {
   email: string | null;
   phone: string | null;
   website: string | null;
+  /** Shown under the card when the email was found automatically and not yet checked */
+  emailCaveat?: { text: string; source: string | null };
   /** "Profile" for a legislator's official page, "Website" for a government */
   websiteLabel: string;
   /** Used for "Find contact" when there is no email on file */
@@ -71,13 +73,26 @@ function buildRecipients(o: Officials): Recipient[] {
       key: 'county',
       level: 'county',
       title: o.county.name,
-      subtitle: o.place ? 'County board' : 'County board · This camera is outside any city, so the county governs it',
-      email: null,
-      phone: null,
+      subtitle: [
+        o.county.head && o.county.headTitle ? `${o.county.headTitle} ${o.county.head}` : null,
+        o.county.body ?? 'County government',
+        o.place ? null : 'This camera is outside any city, so the county governs it',
+      ].filter(Boolean).join(' · '),
+      email: o.county.email,
+      phone: o.county.phone,
+      emailCaveat: o.county.contactStatus === 'found' && o.county.email
+        ? { text: 'Found on the county website, not yet checked by a person. Make sure it reaches the right office.', source: o.county.contactPage }
+        : undefined,
       website: o.county.website,
       websiteLabel: 'Website',
       searchQuery: `${o.county.name} ${o.state.code} commissioners contact email`,
-      ctx: { state, county: o.county.name },
+      ctx: {
+        state,
+        county: o.county.name,
+        countyBody: o.county.body,
+        countyHeadTitle: o.county.headTitle,
+        lastName: lastWord(o.county.head),
+      },
     });
   }
 
@@ -216,6 +231,7 @@ function RecipientList({ recipients, officials, onSelect }: {
             <Building2 className="w-4 h-4 text-dark-300" /> Local government
           </h3>
           <div>{local.map(r => <RecipientCard key={r.key} recipient={r} onSelect={onSelect} />)}</div>
+          {officials.countyNote && <p className="mt-2 text-xs text-dark-400">{officials.countyNote}</p>}
         </section>
       )}
 
@@ -278,7 +294,19 @@ function RecipientCard({ recipient: r, onSelect }: { recipient: Recipient; onSel
           </a>
         )}
       </div>
+      {r.emailCaveat && <EmailCaveat caveat={r.emailCaveat} />}
     </div>
+  );
+}
+
+function EmailCaveat({ caveat }: { caveat: NonNullable<Recipient['emailCaveat']> }) {
+  return (
+    <p className="mt-2 text-[11px] text-amber-400/90">
+      {caveat.text}
+      {caveat.source && (
+        <> <a href={caveat.source} target="_blank" rel="noopener noreferrer" className="underline">Source</a></>
+      )}
+    </p>
   );
 }
 
@@ -321,6 +349,7 @@ function LetterEditor({ recipient }: { recipient: Recipient }) {
           placeholder="Paste the email address you found"
           className={fieldClass}
         />
+        {recipient.emailCaveat && <EmailCaveat caveat={recipient.emailCaveat} />}
         {!recipient.email && (
           <span className="block mt-1 text-xs text-dark-400">
             No email on file.{' '}
