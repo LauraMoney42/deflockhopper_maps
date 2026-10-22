@@ -78,6 +78,7 @@ import { isMapRevealReady } from '../../utils/mapReveal';
 import { useCameraTileJson } from '../../hooks/useCameraTileJson';
 import { loadStateGeometry } from '../../services/stateFilterService';
 import { buildCameraTileFilter } from '../../utils/cameraTileFilter';
+import { ContactRepsModal } from '../contact/ContactRepsModal';
 
 // Both tile paths (default + filtered) render the same points layer shape;
 // accept either id so click handling doesn't need to know which instance is
@@ -168,6 +169,9 @@ export const MapLibreView = forwardRef<MapLibreViewHandle, MapLibreViewProps>(
 
   const attribPosition = 'bottom-left' as const;
   const [popupInfo, setPopupInfo] = useState<PopupInfo | null>(null);
+  // Camera whose Contact Reps modal is open; outlives the popup so closing
+  // the popup underneath doesn't drop a half-written letter
+  const [contactCamera, setContactCamera] = useState<ALPRCamera | null>(null);
   const [cursor, setCursor] = useState<string>('');
   const lastFlyToRef = useRef<number>(0);
   // Last tile-count query result — lets updateVisibleCameras skip the
@@ -1604,8 +1608,12 @@ export const MapLibreView = forwardRef<MapLibreViewHandle, MapLibreViewProps>(
           className="camera-popup-maplibre"
           maxWidth="280px"
         >
-          <MemoizedCameraPopupContent camera={popupInfo.camera} />
+          <MemoizedCameraPopupContent camera={popupInfo.camera} onContactReps={setContactCamera} />
         </Popup>
+      )}
+
+      {contactCamera && (
+        <ContactRepsModal camera={contactCamera} onClose={() => setContactCamera(null)} />
       )}
 
       {/* Location picking mode indicator */}
@@ -1687,7 +1695,7 @@ function wikimediaImageUrl(tag: string): string {
 }
 
 // Popup content component - Dark theme
-function CameraPopupContent({ camera }: { camera: ALPRCamera }) {
+function CameraPopupContent({ camera, onContactReps }: { camera: ALPRCamera; onContactReps: (camera: ALPRCamera) => void }) {
   const osmUrl = `https://www.openstreetmap.org/${camera.osmType}/${camera.osmId}`;
 
   const wikiImageUrl = camera.wikimediaCommons ? wikimediaImageUrl(camera.wikimediaCommons) : null;
@@ -1773,6 +1781,12 @@ function CameraPopupContent({ camera }: { camera: ALPRCamera }) {
         >
           View OSM
         </a>
+        <button
+          onClick={() => onContactReps(camera)}
+          className="flex-1 px-3 py-2 text-xs text-center bg-accent hover:bg-accent/90 text-dark-900 rounded-lg transition-colors font-medium"
+        >
+          Contact Reps
+        </button>
       </div>
     </div>
   );

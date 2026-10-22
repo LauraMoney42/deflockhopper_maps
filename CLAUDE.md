@@ -84,6 +84,9 @@ The map has 4 modes, selectable via the header tabs:
 | `src/components/map/layers/CameraTileLayers.tsx` | Default camera rendering — dots/points/cones from the camera vector tiles |
 | `src/components/panels/MapPanel.tsx` | Main panel container component |
 | `src/components/panels/TabbedPanel.tsx` | Tab navigation for mode panels |
+| `src/components/contact/ContactRepsModal.tsx` | Contact Reps: officials for a clicked camera + letter editor (Copy / Gmail / mailto) |
+| `src/utils/letter.ts` | Pure letter helpers: fill placeholders, personal note, email links |
+| `src/data/letterTemplates.ts` | City / County / State letter text (mirrors `docs/contact-reps/letter-templates.md`) |
 
 ### State Management Pattern
 
@@ -134,6 +137,7 @@ Found in .env file. Environment variables are prefixed with `VITE_` for Vite to 
 | `VITE_TILES_URL` | Legacy, unused — tile hosts are fixed in `src/store/tilesHostStore.ts` |
 | `VITE_DATA_API_URL` | Cloudflare Worker data API URL |
 | `VITE_PERF_LOGGING` | Enable performance logging |
+| `VITE_OFFICIALS_API_URL` | Contact Reps officials lookup (default `https://api.deflock.org/officials`); point at `http://localhost:3420/officials` to use a local deflock API |
 | `VITE_NETWORK_DATA_BASE` | Sharing-network data base URL (default `https://deflockdata.dontgetflocked.com`); point at a local copy or staging bucket |
 ## Important Patterns
 
