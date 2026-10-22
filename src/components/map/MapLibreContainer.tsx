@@ -1597,7 +1597,8 @@ export const MapLibreView = forwardRef<MapLibreViewHandle, MapLibreViewProps>(
         <Popup
           longitude={popupInfo.longitude}
           latitude={popupInfo.latitude}
-          anchor="bottom"
+          // No fixed anchor: MapLibre picks the side with room, so a camera
+          // near the top edge opens its popup below instead of off-screen
           onClose={() => setPopupInfo(null)}
           closeOnClick={false}
           className="camera-popup-maplibre"
