@@ -13,6 +13,7 @@ import {
   buildGmailLink,
   buildMailtoLink,
   contactSearchUrl,
+  placeNoun,
   MAILTO_MAX_LENGTH,
   type LetterContext,
 } from '@/utils/letter';
@@ -49,6 +50,11 @@ function lastWord(name: string | null): string | undefined {
   return name ? name.trim().split(/\s+/).slice(-1)[0] : undefined;
 }
 
+// "Pleasantville village" is addressed as "Village of Pleasantville"
+const PLACE_TITLES: Record<string, string> = {
+  city: 'City', town: 'Town', village: 'Village', borough: 'Borough', township: 'Township', 'city and borough': 'City and Borough',
+};
+
 function buildRecipients(o: Officials): Recipient[] {
   const recipients: Recipient[] = [];
   const state = o.state.name;
@@ -57,14 +63,29 @@ function buildRecipients(o: Officials): Recipient[] {
     recipients.push({
       key: 'city',
       level: 'city',
-      title: `City of ${o.place.name}`,
-      subtitle: o.place.head ? `Mayor ${o.place.head} · City council` : 'City council',
-      email: null,
-      phone: null,
+      title: `${(o.place.type && PLACE_TITLES[o.place.type]) || 'City'} of ${o.place.name}`,
+      // Only name a title we know: "Mayor" comes from the state/type table, never assumed
+      subtitle: [
+        o.place.head ? (o.place.headTitle ? `${o.place.headTitle} ${o.place.head}` : o.place.head) : null,
+        o.place.body ?? 'City government',
+      ].filter(Boolean).join(' · '),
+      email: o.place.email,
+      phone: o.place.phone,
+      emailCaveat: o.place.contactStatus === 'found' && o.place.email
+        ? { text: `Found on the ${placeNoun(o.place.type)} website, not yet checked by a person. Make sure it reaches the right office.`, source: o.place.contactPage }
+        : undefined,
       website: o.place.website,
       websiteLabel: 'Website',
-      searchQuery: `${o.place.name} ${o.state.code} city council contact email`,
-      ctx: { state, city: o.place.name, county: o.county?.name, lastName: lastWord(o.place.head) },
+      searchQuery: `${o.place.name} ${o.state.code} ${o.place.body ?? `${placeNoun(o.place.type)} council`} contact email`,
+      ctx: {
+        state,
+        city: o.place.name,
+        county: o.county?.name,
+        lastName: lastWord(o.place.head),
+        cityType: o.place.type,
+        cityBody: o.place.body,
+        cityHeadTitle: o.place.headTitle,
+      },
     });
   }
 

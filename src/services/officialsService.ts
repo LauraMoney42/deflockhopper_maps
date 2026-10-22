@@ -30,22 +30,29 @@ export interface UnfilledSeat {
   district: string;
 }
 
-export interface County extends LocalGov {
-  /** Governing body, e.g. "Quorum Court"; null where a state's counties differ */
+interface GovContact {
+  /** Governing body, e.g. "Quorum Court" or "City Council"; null where a state's counties or places differ */
   body: string | null;
-  /** How its leader is addressed, e.g. "County Judge" */
+  /** How its leader is addressed, e.g. "County Judge" or "Mayor" */
   headTitle: string | null;
   email: string | null;
   phone: string | null;
   /** Page the contact came from */
   contactPage: string | null;
-  /** 'verified' = a person checked it; 'found' = read from the county's site, not yet checked */
+  /** 'verified' = a person checked it; 'found' = read from the government's site, not yet checked */
   contactStatus: 'verified' | 'found' | null;
+}
+
+export type County = LocalGov & GovContact;
+
+export interface Place extends LocalGov, GovContact {
+  /** Census place type: "city", "town", "village", "borough", ...; null when unknown */
+  type: string | null;
 }
 
 export interface Officials {
   state: { code: string; name: string; fips: string };
-  place: LocalGov | null;
+  place: Place | null;
   county: County | null;
   /** Why there's no county card (no county government, independent city, ...) */
   countyNote: string | null;

@@ -15,6 +15,12 @@ export interface LetterContext {
   city?: string;
   /** Full county name as Census gives it, e.g. "Adams County" or "Orleans Parish" */
   county?: string;
+  /** Census place type for the city letter: "city", "town", "village", "borough", ... */
+  cityType?: string | null;
+  /** City governing body, e.g. "City Council" or "Board of Trustees". null = unknown (varies); omitted = the template's "City Council" */
+  cityBody?: string | null;
+  /** How the city's leader is addressed, e.g. "Mayor". null = unknown; omitted = "Mayor" */
+  cityHeadTitle?: string | null;
   /** Recipient's family name, when known */
   lastName?: string;
   /** County governing body, e.g. "Quorum Court"; unknown where a state's counties differ */
@@ -30,6 +36,22 @@ export interface Letter {
   body: string;
 }
 
+const PLACE_NOUNS: Record<string, string> = { city: 'city', town: 'town', village: 'village', borough: 'borough', township: 'township' };
+
+/** What the place calls itself in running text; "city" when the type is unknown or unusual */
+export function placeNoun(type?: string | null): string {
+  return (type && PLACE_NOUNS[type]) || 'city';
+}
+
+// "the council" in the template must follow the body's real name
+function bodyWord(body: string): string {
+  if (/council/i.test(body)) return 'council';
+  if (/assembly/i.test(body)) return 'assembly';
+  if (/commission/i.test(body)) return 'commission';
+  if (/board/i.test(body)) return 'board';
+  return 'governing body';
+}
+
 function replaceAll(text: string, placeholder: string, value: string | undefined): string {
   return value ? text.split(placeholder).join(value) : text;
 }
@@ -38,10 +60,25 @@ export function fillLetter(level: LetterLevel, ctx: LetterContext): Letter {
   const { subject } = LETTER_TEMPLATES[level];
   let { body } = LETTER_TEMPLATES[level];
 
-  if (level === 'city' && !ctx.lastName) {
-    // No mayor on file: address the council alone instead of leaving a
-    // "Mayor [Last Name]" gap the user has to research.
-    body = body.replace('Mayor [Last Name] and ', '');
+  if (level === 'city' && !ctx.city) {
+    // No place name to build a greeting from; just don't leave a mayor gap
+    if (!ctx.lastName) body = body.replace('Mayor [Last Name] and ', '');
+  } else if (level === 'city' && ctx.city) {
+    // Build the greeting from what we actually know, never a guessed title:
+    // "Dear Mayor McNally and Members of the Westminster City Council,".
+    // Omitted body/title mean the template's own City Council and Mayor.
+    const cityBody = ctx.cityBody === undefined ? 'City Council' : ctx.cityBody;
+    const headTitle = ctx.cityHeadTitle === undefined ? 'Mayor' : ctx.cityHeadTitle;
+    const noun = placeNoun(ctx.cityType);
+    const lines = body.split('\n');
+    const head = headTitle && ctx.lastName ? `${headTitle} ${ctx.lastName} and ` : '';
+    // Unknown body but known mayor: "Dear Mayor Sprouse and Springdale officials,"
+    lines[0] = cityBody ? `Dear ${head}Members of the ${ctx.city} ${cityBody},` : `Dear ${head}${ctx.city} officials,`;
+    body = lines.join('\n')
+      // A town or village isn't a "city", and its body may not be a council
+      .replace(/asking the council to/g, cityBody ? `asking the ${bodyWord(cityBody)} to` : 'asking you to')
+      .replace('serving our city', `serving our ${noun}`)
+      .replace(/\bcity (property|funding|access)\b/g, `${noun} $1`);
   }
 
   if (level === 'county') {
@@ -52,7 +89,7 @@ export function fillLetter(level: LetterLevel, ctx: LetterContext): Letter {
     if (ctx.countyBody && ctx.county) {
       lines[0] = `Dear ${head}Members of the ${ctx.county} ${ctx.countyBody},`;
     } else if (ctx.county) {
-      lines[0] = `Dear ${ctx.county} officials,`;
+      lines[0] = `Dear ${head}${ctx.county} officials,`;
     }
     body = lines.join('\n');
   }
